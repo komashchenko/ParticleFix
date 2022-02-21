@@ -1,0 +1,274 @@
+# vim: set sts=2 ts=8 sw=2 tw=99 et ft=python:
+import os, sys
+
+def ResolveEnvPath(env, folder):
+  if env in os.environ:
+    path = os.environ[env]
+    if os.path.isdir(path):
+      return path
+    return None
+
+  head = os.getcwd()
+  oldhead = None
+  while head != None and head != oldhead:
+    path = os.path.join(head, folder)
+    if os.path.isdir(path):
+      return path
+    oldhead = head
+    head, tail = os.path.split(head)
+
+  return None
+
+def SDKPath():
+    sdk_folder = 'hl2sdk-csgo'
+    sdk_envvar = 'HL2SDKCSGO'
+	
+    if builder.options.hl2sdk_root:
+      sdk_path = os.path.join(builder.options.hl2sdk_root, sdk_folder)
+    else:
+      sdk_path = ResolveEnvPath(sdk_envvar, sdk_folder)
+    if sdk_path is None or not os.path.isdir(sdk_path):
+      raise Exception('Could not find a valid path for {0}'.format(sdk_envvar))
+    else:
+      sdk_path = os.path.abspath(os.path.normpath(sdk_path))
+    return sdk_path
+
+class VSPConfig(object):
+  def __init__(self):
+    self.sdk_path = SDKPath()
+    self.binaries = []
+
+  @property
+  def tag(self):
+    if builder.options.debug == '1':
+      return 'Debug'
+    return 'Release'
+
+  def configure(self):
+    cxx = builder.DetectCompilers()
+
+    if cxx.like('gcc'):
+      self.configure_gcc(cxx)
+    elif cxx.vendor == 'msvc':
+      self.configure_msvc(cxx)
+
+    # Optimizaiton
+    if builder.options.opt == '1':
+      cxx.defines += ['NDEBUG']
+
+    # Debugging
+    if builder.options.debug == '1':
+      cxx.defines += ['DEBUG', '_DEBUG']
+
+    # Platform-specifics
+    if builder.target_platform == 'linux':
+      self.configure_linux(cxx)
+    elif builder.target_platform == 'windows':
+      self.configure_windows(cxx)
+
+  def configure_gcc(self, cxx):
+    cxx.defines += [
+      'stricmp=strcasecmp',
+      '_stricmp=strcasecmp',
+      '_snprintf=snprintf',
+      '_vsnprintf=vsnprintf',
+      'HAVE_STDINT_H',
+      'HAVE_STRING_H',
+      'GNUC',
+    ]
+    cxx.cflags += [
+      '-pipe',
+      '-fno-strict-aliasing',
+      '-Wall',
+      '-Werror',
+      '-Wno-unused',
+      '-Wno-switch',
+      '-Wno-array-bounds',
+      '-msse4.2',
+      '-m32',
+      '-fvisibility=hidden',
+	  '-fasm-blocks',
+    ]
+    cxx.cxxflags += [
+      '-std=c++11',
+      '-fno-exceptions',
+      '-fno-threadsafe-statics',
+      '-Wno-non-virtual-dtor',
+      '-Wno-overloaded-virtual',
+      '-fvisibility-inlines-hidden',
+      '-fno-rtti',
+    ]
+    cxx.linkflags += ['-m32']
+
+    have_gcc = cxx.vendor == 'gcc'
+    have_clang = cxx.vendor == 'clang'
+    if cxx.version >= 'clang-3.6':
+      cxx.cxxflags += ['-Wno-inconsistent-missing-override']
+    if cxx.version >= 'clang-10.0':
+      cxx.cxxflags += ['-Wno-implicit-int-float-conversion']
+    if have_clang or (cxx.version >= 'gcc-4.6'):
+      cxx.cflags += ['-Wno-narrowing']
+    if have_clang or (cxx.version >= 'gcc-4.7'):
+      cxx.cxxflags += ['-Wno-delete-non-virtual-dtor']
+    if cxx.version >= 'gcc-4.8':
+      cxx.cflags += ['-Wno-unused-result']
+
+    if have_clang:
+      cxx.cxxflags += ['-Wno-implicit-exception-spec-mismatch']
+      if cxx.version >= 'apple-clang-5.1' or cxx.version >= 'clang-3.4':
+        cxx.cxxflags += ['-Wno-deprecated-register']
+      else:
+        cxx.cxxflags += ['-Wno-deprecated']
+      cxx.cflags += ['-Wno-sometimes-uninitialized']
+
+    if have_gcc:
+      cxx.cflags += ['-mfpmath=sse4.2']
+
+    if builder.options.opt == '1':
+      cxx.cflags += ['-O3']
+
+  def configure_msvc(self, cxx):
+    if builder.options.debug == '1':
+      cxx.cflags += ['/MTd']
+      cxx.linkflags += ['/NODEFAULTLIB:libcmt']
+    else:
+      cxx.cflags += ['/MT']
+      cxx.linkflags += ['/NODEFAULTLIB:libcmtd']
+    cxx.defines += [
+      '_CRT_SECURE_NO_DEPRECATE',
+      '_CRT_SECURE_NO_WARNINGS',
+      '_CRT_NONSTDC_NO_DEPRECATE',
+      '_ITERATOR_DEBUG_LEVEL=0',
+    ]
+    cxx.cflags += [
+      '/W3',
+    ]
+    cxx.cxxflags += [
+      '/EHsc',
+      '/GR-',
+      '/TP',
+    ]
+    cxx.linkflags += [
+      '/MACHINE:X86',
+      'kernel32.lib',
+      'user32.lib',
+      'gdi32.lib',
+      'winspool.lib',
+      'comdlg32.lib',
+      'advapi32.lib',
+      'shell32.lib',
+      'ole32.lib',
+      'oleaut32.lib',
+      'uuid.lib',
+      'odbc32.lib',
+      'odbccp32.lib',
+    ]
+
+    if builder.options.opt == '1':
+      cxx.cflags += ['/Ox', '/Zo']
+      cxx.linkflags += ['/OPT:ICF', '/OPT:REF']
+
+    if builder.options.debug == '1':
+      cxx.cflags += ['/Od', '/RTC1']
+
+    # This needs to be after our optimization flags which could otherwise disable it.
+    # Don't omit the frame pointer.
+    cxx.cflags += ['/Oy-']
+
+  def configure_linux(self, cxx):
+    cxx.defines += ['_LINUX', 'POSIX']
+    cxx.linkflags += ['-lm']
+    if cxx.vendor == 'gcc':
+      cxx.linkflags += ['-static-libgcc']
+    elif cxx.vendor == 'clang':
+      cxx.linkflags += ['-lgcc_eh']
+
+  def configure_windows(self, cxx):
+    cxx.defines += ['WIN32', '_WINDOWS']
+	
+  def ConfigureForVSP(self, context, compiler):
+    compiler.cxxincludes += [
+      os.path.join(context.currentSourcePath)
+    ]
+    return compiler
+
+  def ConfigureForHL2(self, binary):
+    compiler = binary.compiler
+	
+    if compiler.like('msvc'):
+      compiler.defines += ['COMPILER_MSVC', 'COMPILER_MSVC32']
+      if compiler.version >= 1900:
+        compiler.linkflags += ['legacy_stdio_definitions.lib']
+    else:
+      compiler.defines += ['COMPILER_GCC']
+      compiler.linkflags += ['-lstdc++']
+      compiler.defines += ['_GLIBCXX_USE_CXX11_ABI=0']
+
+    paths = [
+      ['public'],
+      ['public', 'engine'],
+      ['public', 'mathlib'],
+      ['public', 'vstdlib'],
+      ['public', 'tier0'],
+      ['public', 'tier1'],
+      ['public', 'game', 'server'],
+      ['public', 'toolframework'],
+      ['game', 'shared'],
+      ['common']
+    ]
+	
+    # Memory management with g_pMemAlloc
+    binary.sources += [os.path.join(self.sdk_path, 'public', 'tier0', 'memoverride.cpp')]
+    
+    for path in paths:
+      compiler.cxxincludes += [os.path.join(self.sdk_path, *path)]
+
+    if builder.target_platform == 'linux':
+      lib_folder = os.path.join(self.sdk_path, 'lib', 'linux')
+      compiler.postlink += [
+        compiler.Dep(os.path.join(lib_folder, 'tier1_i486.a')),
+        compiler.Dep(os.path.join(lib_folder, 'mathlib_i486.a'))
+      ]
+
+    dynamic_libs = []
+    if builder.target_platform == 'linux':
+      dynamic_libs = ['libtier0.so', 'libvstdlib.so']
+    elif builder.target_platform == 'windows':
+      for lib in ['tier0', 'tier1', 'vstdlib', 'mathlib']:
+        lib_path = os.path.join(self.sdk_path, 'lib', 'public', lib) + '.lib'
+        compiler.linkflags.append(compiler.Dep(lib_path))
+
+    for library in dynamic_libs:
+      source_path = os.path.join(lib_folder, library)
+      output_path = os.path.join(binary.localFolder, library)
+
+      def make_linker(source_path, output_path):
+        def link(context, binary):
+          cmd_node, (output,) = context.AddSymlink(source_path, output_path)
+          return output
+        return link
+
+      linker = make_linker(source_path, output_path)
+      compiler.linkflags[0:0] = [compiler.Dep(library, linker)]
+
+    return binary
+
+  def Project(self, context, name):
+    project = context.compiler.LibraryProject(name)
+    self.ConfigureForVSP(context, project.compiler)
+    return project
+
+  def Config(self, project, name):
+    binary = project.Configure(name, self.tag)
+    return self.ConfigureForHL2(binary)
+
+VSP = VSPConfig()
+VSP.configure()
+
+# Add additional buildscripts here
+BuildScripts = [
+  'plugin/AMBuilder',
+  'PackageScript',
+]
+
+builder.RunBuildScripts(BuildScripts, {'VSP': VSP})

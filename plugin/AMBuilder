@@ -1,0 +1,26 @@
+# vim: set sts=2 ts=8 sw=2 tw=99 et ft=python:
+import os, sys
+
+project = VSP.Project(builder, 'particle_fix')
+project.sources += [
+  'particle_fix.cpp',
+  'limit_extender.cpp',
+  'precache_fix.cpp',
+  'client_precache_fix.cpp'
+]
+
+# Limit ParticleEffectNames
+project.compiler.defines += ['MAX_PARTICLESYSTEMS_STRING_BITS=12']
+
+# SUBHOOK
+project.sources += ['subhook/subhook.c']
+project.compiler.defines += ['SUBHOOK_STATIC']
+project.compiler.cxxincludes += [os.path.join(builder.currentSourcePath, 'subhook')]
+
+# Export only CreateInterface
+if builder.target_platform == 'linux':
+  project.compiler.linkflags += ['-Wl,--version-script=' + os.path.join(builder.currentSourcePath, 'ExportMap')]
+
+VSP.Config(project, 'particle_fix')
+
+VSP.binaries += builder.Add(project)
