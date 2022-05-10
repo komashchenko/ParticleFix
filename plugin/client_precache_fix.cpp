@@ -29,11 +29,11 @@ decltype(ClientPrecacheFix::CNetworkStringTable_WriteUpdate) ClientPrecacheFix::
 bool ClientPrecacheFix::Init(char* error, size_t maxlength)
 {
 #ifdef _WIN32
-	const uint8_t WriteBaselinesPattern[] = "\x8B\x06\x8B\xCE\x53\xFF\x50\x10\x8B\x7D\x0C\x8B\xF0\xFF\x75\x10\x8B\xCE\x8B\x47\x0C\x83\xC0\x07\xC1";
+	const uint8_t WriteBaselinesPattern[] = "\x8B\x03\x8B\xCB\x57\xFF\x50\x10\x8B\x75\x0C\x8B\xD8\xFF\x75\x10\x8B\xCB\x8B\x46\x0C\x83\xC0\x07\xC1";
 	const uint8_t CNetworkStringTablePattern[] = "\x55\x8B\xEC\x51\x8B\x45\x1C\x53\x8B\x5D\x10\x56\x8B\xF1\x8B\x4D\x14\x57\x80\x66\x20\xFB\x89\x46\x24";
 	const uint8_t WriteUpdatePattern[] = "\x53\x8B\xDC\x83\xEC\x08\x83\xE4\xF0\x83\xC4\x04\x55\x8B\x6B\x04\x89\x6C\x24\x04\x8B\xEC\x81\xEC\x58\x05\x00\x00";
 #else
-	const uint8_t WriteBaselinesPattern[] = "\x8B\x55\xA4\x8B\x06\x89\x34\x24\x89\x54\x24\x04\xFF\x50\x14\x89\xC3\x8B\x47\x0C\x8B\x55\x14\x89\x1C";
+	const uint8_t WriteBaselinesPattern[] = "\x8B\x55\xA0\x8B\x07\x89\x3C\x24\x89\x54\x24\x04\xFF\x50\x14\x89\xC3\x8B\x46\x0C\x8B\x55\x14\x89\x1C";
 	const uint8_t CNetworkStringTablePattern[] = "\x55\x89\xE5\x57\x56\x53\x83\xEC\x2C\x8B\x5D\x08\x8B\x75\x18\x8B\x7D\x14\x80\x63\x20\xFB\xC7\x03";
 	const uint8_t WriteUpdatePattern[] = "\x55\x89\xE5\x57\x56\x53\x81\xEC\x9C\x04\x00\x00\x8B\x45\x18\x8B\x75\x08\x8B\x5D\x10\x39\x45\x14\x7E\x2A\x8B\x46\x18\x39\x45\x18";
 #endif
@@ -141,7 +141,7 @@ WIN_LINUX(__declspec(naked), __attribute__((naked))) void ClientPrecacheFix::Wri
 	__asm mov edx, [ebp+0x0C] // bf_write& buf
 	__asm mov edx, [edx+0x14] // buf::m_pDebugName
 #else
-	__asm mov edx, [edi+0x14] // buf::m_pDebugName
+	__asm mov edx, [esi+0x14] // buf::m_pDebugName
 #endif
 	__asm xor eax, eax
 	__asm cmp dword ptr [edx], 0x535F5653 // S_SV (SV_SendServerinfo->msg)
@@ -150,11 +150,12 @@ WIN_LINUX(__declspec(naked), __attribute__((naked))) void ClientPrecacheFix::Wri
 	// Call GetTableOverride
 	__asm push eax
 #ifdef _WIN32
-	__asm mov edx, ebx // i
+	__asm mov edx, edi // i
+	__asm mov ecx, ebx // this
 #else
-	__asm mov edx, [ebp-0x5C] // i
+	__asm mov edx, [ebp-0x60] // i
+	__asm mov ecx, edi // this
 #endif
-	__asm mov ecx, esi // this
 	__asm call WriteBaselines_GetTableOverride
 	
 	// Go back

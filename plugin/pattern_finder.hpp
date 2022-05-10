@@ -171,7 +171,7 @@ public:
 		
 		do
 		{
-			if (*ptr == _pattern[0] && *(ptr + size - 1) != _pattern[size - 1])
+			if (*ptr != _pattern[0] || *(ptr + size - 1) != _pattern[size - 1])
 			{
 				continue;
 			}
