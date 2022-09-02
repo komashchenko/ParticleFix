@@ -21,7 +21,9 @@
 #define _INCLUDE_LIMIT_EXTENDER_H_
 
 #include "particle_fix.h"
+#include "subhook.h"
 #include <icvar.h>
+#include <igameevents.h>
 
 class LimitExtender
 {
@@ -31,12 +33,28 @@ public:
 	void Shutdown();
 	
 private:
+	class CBaseClient : public IGameEventListener2, public IClient
+	{
+	public:
+		virtual ~CBaseClient();
+	};
+	
+	class CHLTVClient : public CBaseClient
+	{
+	public:
+		virtual ~CHLTVClient();
+	};
+	
 	static void SendTablesChangeCallback(IConVar* pVar, const char* pszOldValue, float flOldValue);
+	static bool WIN_LINUX(__thiscall, __cdecl) CHLTVClient_SendSignonDataHook(CHLTVClient* _this);
 	
 	uint32_t* m_pMaxEntries;
 	int32_t* m_pBits;
 	uint32_t* m_pSendTableCRC;
 	ConVar* m_pSendTables;
+	static bf_write* m_pFullSendTables;
+	subhook::Hook* m_pCHLTVClient_SendSignonData;
+	static bool (WIN_LINUX(__thiscall, __cdecl) *CBaseClient_SendSignonData)(CBaseClient* _this);
 };
 
 #endif // _INCLUDE_LIMIT_EXTENDER_H_

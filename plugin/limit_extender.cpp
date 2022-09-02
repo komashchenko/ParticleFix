@@ -20,17 +20,27 @@
 #include "limit_extender.h"
 #include <server_class.h>
 #include <dt_send.h>
+#include <inetchannel.h>
 // memdbgon must be the last include file in a .cpp file!!!
 #include <tier0/memdbgon.h>
+
+decltype(LimitExtender::m_pFullSendTables) LimitExtender::m_pFullSendTables;
+decltype(LimitExtender::CBaseClient_SendSignonData) LimitExtender::CBaseClient_SendSignonData;
 
 bool LimitExtender::Init(char* error, size_t maxlength)
 {
 #ifdef _WIN32
 	const uint8_t CreateNetworkStringTablesPattern[] = "\x8B\x0D\x2A\x2A\x2A\x2A\x6A\x01\x6A\x00\x6A\x00\x8B\x01\x68\x00\x04\x00\x00\x68";
 	const uint8_t SendTablePattern[] = "\x55\x8B\xEC\x83\xEC\x0C\x83\x3D\x2A\x2A\x2A\x2A\x00\x53\x56\x57\x8B\xFA\x8B\xD9\x74";
+	const uint8_t CreateBaselinePattern[] = "\x55\x8B\xEC\x83\xEC\x5C\xB9\x2A\x2A\x2A\x2A\x53\x56\x57\xE8";
+	const uint8_t CHLTVClient_SendSignonDataPattern[] = "\x55\x8B\xEC\x83\xEC\x44\x56\x8B\xF1\x8B\x86\xF8\x01\x00\x00";
+	const uint8_t CBaseClient_SendSignonDataPattern[] = "\x55\x8B\xEC\x83\xE4\xF8\x83\xEC\x54\x53\x56\x57\x68";
 #else
 	const uint8_t CreateNetworkStringTablesPattern[] = "\x55\x89\xE5\x83\xEC\x28\xA1\x2A\x2A\x2A\x2A\x8B\x10\xC7\x44\x24\x14\x01\x00\x00\x00\xC7\x44\x24\x10\x00\x00\x00\x00\xC7\x44\x24\x0C\x00\x00\x00\x00\xC7\x44\x24\x08\x00\x04\x00\x00\xC7\x44\x24\x04\x2A\x2A\x2A\x2A\x89\x04\x24\xFF\x52\x08\xA3\x2A\x2A\x2A\x2A\xA1\x2A\x2A\x2A\x2A\x8B\x10";
 	const uint8_t SendTablePattern[] = "\x55\x89\xE5\x57\x56\x53\x83\xEC\x4C\xA1\x2A\x2A\x2A\x2A\x8B\x7D\x08\x85\xC0";
+	const uint8_t CreateBaselinePattern[] = "\x55\x89\xE5\x57\x56\x53\x81\xEC\x8C\x40\x00\x00\xC7\x04\x24";
+	const uint8_t CHLTVClient_SendSignonDataPattern[] = "\x55\x89\xE5\x83\xEC\x48\x89\x5D\xF8\x8B\x5D\x08\x89\x75\xFC\x8B\xB3\xE4\x01\x00\x00";
+	const uint8_t CBaseClient_SendSignonDataPattern[] = "\x55\x89\xE5\x56\x53\x83\xEC\x50\x8B\x5D\x08\xC7\x04\x24";
 #endif
 	
 	uintptr_t pCreateNetworkStringTables = g_PatternFinderServer.Find<uintptr_t>(CreateNetworkStringTablesPattern, sizeof(CreateNetworkStringTablesPattern) - 1);
@@ -45,6 +55,30 @@ bool LimitExtender::Init(char* error, size_t maxlength)
 	if(!pSendTable_Init)
 	{
 		V_strncpy(error, "Failed to find SendTable_Init.", maxlength);
+		
+		return false;
+	}
+	
+	uintptr_t pCreateBaseline = g_PatternFinderEngine.Find<uintptr_t>(CreateBaselinePattern, sizeof(CreateBaselinePattern) - 1);
+	if(!pCreateBaseline)
+	{
+		V_strncpy(error, "Failed to find SV_CreateBaseline.", maxlength);
+		
+		return false;
+	}
+	
+	void* pCHLTVClient_SendSignonData = g_PatternFinderEngine.Find<void*>(CHLTVClient_SendSignonDataPattern, sizeof(CHLTVClient_SendSignonDataPattern) - 1);
+	if(!pCHLTVClient_SendSignonData)
+	{
+		V_strncpy(error, "Failed to find CHLTVClient::SendSignonData.", maxlength);
+		
+		return false;
+	}
+	
+	CBaseClient_SendSignonData = g_PatternFinderEngine.Find<decltype(CBaseClient_SendSignonData)>(CBaseClient_SendSignonDataPattern, sizeof(CBaseClient_SendSignonDataPattern) - 1);
+	if(!CBaseClient_SendSignonData)
+	{
+		V_strncpy(error, "Failed to find CBaseClient::SendSignonData.", maxlength);
 		
 		return false;
 	}
@@ -80,6 +114,11 @@ bool LimitExtender::Init(char* error, size_t maxlength)
 	// Transfer modified table to clients
 	m_pSendTables = g_pCVar->FindVar("sv_sendtables");
 	
+	// sv.m_FullSendTables
+	m_pFullSendTables = *reinterpret_cast<bf_write**>(pCreateBaseline + WIN_LINUX(0xA5, 0x75));
+	
+	m_pCHLTVClient_SendSignonData = new subhook::Hook(pCHLTVClient_SendSignonData, reinterpret_cast<void*>(CHLTVClient_SendSignonDataHook));
+	
 	return true;
 }
 
@@ -98,6 +137,8 @@ void LimitExtender::Enable()
 	
 	// Disallow changing sv_sendtables
 	m_pSendTables->InstallChangeCallback(SendTablesChangeCallback);
+	
+	m_pCHLTVClient_SendSignonData->Install();
 }
 
 void LimitExtender::Shutdown()
@@ -105,6 +146,11 @@ void LimitExtender::Shutdown()
 	if(m_pSendTables)
 	{
 		m_pSendTables->RemoveChangeCallback(SendTablesChangeCallback);
+	}
+	
+	if(m_pCHLTVClient_SendSignonData)
+	{
+		delete m_pCHLTVClient_SendSignonData;
 	}
 }
 
@@ -114,4 +160,12 @@ void LimitExtender::SendTablesChangeCallback(IConVar* pVar, const char* pszOldVa
 	{
 		pVar->SetValue(1);
 	}
+}
+
+bool LimitExtender::CHLTVClient_SendSignonDataHook(CHLTVClient* _this)
+{
+	// Send tables & class infos
+	_this->GetNetChannel()->SendData(*m_pFullSendTables);
+	
+	return CBaseClient_SendSignonData(_this);
 }
