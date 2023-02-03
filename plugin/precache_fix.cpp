@@ -33,9 +33,9 @@ bool PrecacheFix::Init(char* error, size_t maxlength)
 	const uint8_t ParseParticleEffectsPattern[] = "\x55\x8B\xEC\x83\xEC\x14\x8A\x45\x08\x8D\x4D\xEC\x0F\x57\xC0\xA2\x2A\x2A\x2A\x2A\x57\x0F\x11\x45\xEC";
 	const uint8_t PrecacheStandardParticleSystemsPattern[] = "\x55\x8B\xEC\x51\x56\x8B\x35\x2A\x2A\x2A\x2A\x57\x33\xFF\x0F\xB7\x46\x26\x85\xC0\x0F\x8E";
 #else
-	const uint8_t CParticleSystemDefinitionPattern[] = "\x55\x89\xE5\x57\x56\x31\xF6\x53\x83\xEC\x3C\x8B\x5D\x08\x89\x1C\x24\xE8\x2A\x2A\x2A\x2A\x8D\x83\x44\x01\x00\x00";
-	const uint8_t ParseParticleEffectsPattern[] = "\x55\x89\xE5\x57\x56\x8D\x7D\xD4\x53\x83\xEC\x3C\x0F\xB6\x45\x08\x89\x44\x24\x04\xA1\x2A\x2A\x2A\x2A\x89\x04\x24";
-	const uint8_t PrecacheStandardParticleSystemsPattern[] = "\x55\x89\xE5\x56\x53\x31\xDB\x83\xEC\x10\xEB\x07\x8D\x74\x26\x00\x83\xC3\x01\xA1\x2A\x2A\x2A\x2A\x89\x04\x24\xE8";
+	const uint8_t CParticleSystemDefinitionPattern[] = "\x55\x89\xE5\x56\x53\x8B\x5D\x08\x8B\x43\x64\x85\xC0\x74\x2A\x90\x50\xE8\x2A\x2A\x2A\x2A\x8B\x43\x64\x5E\x85\xC0";
+	const uint8_t ParseParticleEffectsPattern[] = "\x55\x89\xE5\x57\x56\x8D\x7D\xD4\x53\x83\xEC\x34\x0F\xB6\x45\x08\x50\xFF\x35\x2A\x2A\x2A\x2A\xE8\x2A\x2A\x2A\x2A\xC7\x45\xD4\x00\x00\x00\x00";
+	const uint8_t PrecacheStandardParticleSystemsPattern[] = "\x55\x89\xE5\x56\x53\x31\xDB\xEB\x2A\x8D\xB4\x26\x00\x00\x00\x00\x83\xC3\x01\x83\xEC\x0C\xFF\x35\x2A\x2A\x2A\x2A\xE8\x2A\x2A\x2A\x2A\x83\xC4\x10";
 #endif
 	
 	CParticleSystemDefinition_destructor = g_PatternFinderServer.Find<decltype(CParticleSystemDefinition_destructor)>(CParticleSystemDefinitionPattern, sizeof(CParticleSystemDefinitionPattern) - 1);
@@ -66,7 +66,7 @@ bool PrecacheFix::Init(char* error, size_t maxlength)
 #ifdef _WIN32
 	m_pParticleSystemDictionary = **reinterpret_cast<CParticleSystemDictionary***>(reinterpret_cast<uintptr_t>(pPrecacheStandardParticleSystems) + 0x7);
 #else
-	m_pParticleSystemDictionary = *reinterpret_cast<CParticleSystemDictionary**>(reinterpret_cast<uintptr_t>(**reinterpret_cast<void***>(reinterpret_cast<uintptr_t>(pPrecacheStandardParticleSystems) + 0x14)) + 0x8C);
+	m_pParticleSystemDictionary = *reinterpret_cast<CParticleSystemDictionary**>(reinterpret_cast<uintptr_t>(**reinterpret_cast<void***>(reinterpret_cast<uintptr_t>(pPrecacheStandardParticleSystems) + 0x18)) + 0x8C);
 #endif	
 	
 	m_pPrecacheStandardParticleSystemsHook = new subhook::Hook(pPrecacheStandardParticleSystems, reinterpret_cast<void*>(PrecacheStandardParticleSystemsHook));

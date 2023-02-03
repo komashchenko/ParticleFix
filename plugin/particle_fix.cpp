@@ -99,5 +99,5 @@ void ParticleFix::LevelInit(char const* pszMapName)
 
 const char* ParticleFix::GetPluginDescription()
 {
-	return "ParticleFix (1.0.2) by Phoenix (˙·٠●Феникс●٠·˙)";
+	return "ParticleFix (1.0.3) by Phoenix (˙·٠●Феникс●٠·˙)";
 }

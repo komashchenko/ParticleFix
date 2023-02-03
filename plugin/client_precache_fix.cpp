@@ -33,9 +33,9 @@ bool ClientPrecacheFix::Init(char* error, size_t maxlength)
 	const uint8_t CNetworkStringTablePattern[] = "\x55\x8B\xEC\x51\x8B\x45\x1C\x53\x8B\x5D\x10\x56\x8B\xF1\x8B\x4D\x14\x57\x80\x66\x20\xFB\x89\x46\x24";
 	const uint8_t WriteUpdatePattern[] = "\x53\x8B\xDC\x83\xEC\x08\x83\xE4\xF0\x83\xC4\x04\x55\x8B\x6B\x04\x89\x6C\x24\x04\x8B\xEC\x81\xEC\x58\x05\x00\x00";
 #else
-	const uint8_t WriteBaselinesPattern[] = "\x8B\x55\xA0\x8B\x07\x89\x3C\x24\x89\x54\x24\x04\xFF\x50\x14\x89\xC3\x8B\x46\x0C\x8B\x55\x14\x89\x1C";
-	const uint8_t CNetworkStringTablePattern[] = "\x55\x89\xE5\x57\x56\x53\x83\xEC\x2C\x8B\x5D\x08\x8B\x75\x18\x8B\x7D\x14\x80\x63\x20\xFB\xC7\x03";
-	const uint8_t WriteUpdatePattern[] = "\x55\x89\xE5\x57\x56\x53\x81\xEC\x9C\x04\x00\x00\x8B\x45\x18\x8B\x75\x08\x8B\x5D\x10\x39\x45\x14\x7E\x2A\x8B\x46\x18\x39\x45\x18";
+	const uint8_t WriteBaselinesPattern[] = "\x8B\x45\x08\x8B\x00\x8B\x40\x14\x3D\x2A\x2A\x2A\x2A\x0F\x85\x2A\x2A\x2A\x2A\x83\xEC\x08";
+	const uint8_t CNetworkStringTablePattern[] = "\x55\x89\xE5\x57\x56\x53\x83\xEC\x1C\x8B\x7D\x08\x8B\x45\x20\x8B\x5D\x18\x8B\x75\x14\x80\x67\x20\xFB";
+	const uint8_t WriteUpdatePattern[] = "\x55\x89\xE5\x57\x56\x53\x81\xEC\x5C\x04\x00\x00\x8B\x45\x18\x39\x45\x14\x8B\x75\x10\x7E\x2A\x8B\x45\x08\x8B\x40\x18\x39\x45\x18";
 #endif
 
 	void* pWriteBaselines = g_PatternFinderEngine.Find<void*>(WriteBaselinesPattern, sizeof(WriteBaselinesPattern) - 1);
@@ -67,11 +67,11 @@ bool ClientPrecacheFix::Init(char* error, size_t maxlength)
 	m_pCNetworkStringTable_WriteUpdate = new subhook::Hook(pCNetworkStringTable_WriteUpdate, reinterpret_cast<void*>(CNetworkStringTable_WriteUpdateHook));
 	CNetworkStringTable_WriteUpdate = reinterpret_cast<decltype(CNetworkStringTable_WriteUpdate)>(m_pCNetworkStringTable_WriteUpdate->GetTrampoline());
 	
-	uintptr_t pJmpBack = reinterpret_cast<uintptr_t>(WriteBaselines_GetTableHook) + WIN_LINUX(0x1C, 0x1A);
+	uintptr_t pJmpBack = reinterpret_cast<uintptr_t>(WriteBaselines_GetTableHook) + WIN_LINUX(0x1C, 0x1B);
 	
-	// Set jmp address [pWriteBaselines + 0x8 | 0xF]
+	// Set jmp address [pWriteBaselines + 0x8 | 0x24]
 	UnprotectMem(pJmpBack, 4);
-	*reinterpret_cast<uint32_t*>(pJmpBack) = reinterpret_cast<uintptr_t>(pWriteBaselines) - pJmpBack + WIN_LINUX(0x8, 0xF) - 0x4;
+	*reinterpret_cast<uint32_t*>(pJmpBack) = reinterpret_cast<uintptr_t>(pWriteBaselines) - pJmpBack + WIN_LINUX(0x8, 0x24) - 0x4;
 	
 	return true;
 }
@@ -141,10 +141,10 @@ WIN_LINUX(__declspec(naked), __attribute__((naked))) void ClientPrecacheFix::Wri
 	__asm mov edx, [ebp+0x0C] // bf_write& buf
 	__asm mov edx, [edx+0x14] // buf::m_pDebugName
 #else
-	__asm mov edx, [esi+0x14] // buf::m_pDebugName
+	__asm mov edx, [edi+0x14] // buf::m_pDebugName
 #endif
 	__asm xor eax, eax
-	__asm cmp dword ptr [edx], 0x535F5653 // S_SV (SV_SendServerinfo->msg)
+	__asm cmp dword ptr [edx], 0x535F5653 // S_VS (SV_SendServerinfo->msg)
 	__asm sete al
 	
 	// Call GetTableOverride
@@ -153,8 +153,8 @@ WIN_LINUX(__declspec(naked), __attribute__((naked))) void ClientPrecacheFix::Wri
 	__asm mov edx, edi // i
 	__asm mov ecx, ebx // this
 #else
-	__asm mov edx, [ebp-0x60] // i
-	__asm mov ecx, edi // this
+	__asm mov edx, [ebp-0x5C] // i
+	__asm mov ecx, [ebp+0x8] // this
 #endif
 	__asm call WriteBaselines_GetTableOverride
 	

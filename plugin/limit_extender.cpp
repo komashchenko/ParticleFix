@@ -36,11 +36,11 @@ bool LimitExtender::Init(char* error, size_t maxlength)
 	const uint8_t CHLTVClient_SendSignonDataPattern[] = "\x55\x8B\xEC\x83\xEC\x44\x56\x8B\xF1\x8B\x86\xF8\x01\x00\x00";
 	const uint8_t CBaseClient_SendSignonDataPattern[] = "\x55\x8B\xEC\x83\xE4\xF8\x83\xEC\x54\x53\x56\x57\x68";
 #else
-	const uint8_t CreateNetworkStringTablesPattern[] = "\x55\x89\xE5\x83\xEC\x28\xA1\x2A\x2A\x2A\x2A\x8B\x10\xC7\x44\x24\x14\x01\x00\x00\x00\xC7\x44\x24\x10\x00\x00\x00\x00\xC7\x44\x24\x0C\x00\x00\x00\x00\xC7\x44\x24\x08\x00\x04\x00\x00\xC7\x44\x24\x04\x2A\x2A\x2A\x2A\x89\x04\x24\xFF\x52\x08\xA3\x2A\x2A\x2A\x2A\xA1\x2A\x2A\x2A\x2A\x8B\x10";
-	const uint8_t SendTablePattern[] = "\x55\x89\xE5\x57\x56\x53\x83\xEC\x4C\xA1\x2A\x2A\x2A\x2A\x8B\x7D\x08\x85\xC0";
-	const uint8_t CreateBaselinePattern[] = "\x55\x89\xE5\x57\x56\x53\x81\xEC\x8C\x40\x00\x00\xC7\x04\x24";
-	const uint8_t CHLTVClient_SendSignonDataPattern[] = "\x55\x89\xE5\x83\xEC\x48\x89\x5D\xF8\x8B\x5D\x08\x89\x75\xFC\x8B\xB3\xE4\x01\x00\x00";
-	const uint8_t CBaseClient_SendSignonDataPattern[] = "\x55\x89\xE5\x56\x53\x83\xEC\x50\x8B\x5D\x08\xC7\x04\x24";
+	const uint8_t CreateNetworkStringTablesPattern[] = "\x55\x89\xE5\x83\xEC\x10\xA1\x2A\x2A\x2A\x2A\x8B\x10\x6A\x01\x6A\x00\x6A\x00\x68\x00\x04\x00\x00\x68\x2A\x2A\x2A\x2A\x50\xFF\x52\x08\x83\xC4\x18";
+	const uint8_t SendTablePattern[] = "\x55\x89\xE5\x57\x56\x53\x83\xEC\x1C\x8B\x1D\x2A\x2A\x2A\x2A\x85\xDB\x0F\x85";
+	const uint8_t CreateBaselinePattern[] = "\x55\x89\xE5\x57\x56\x53\x81\xEC\x78\x40\x00\x00\x65\xA1\x14\x00\x00\x00\x89\x45\xE4\x31\xC0";
+	const uint8_t CHLTVClient_SendSignonDataPattern[] = "\x55\x89\xE5\x57\x56\x53\x83\xEC\x4C\x8B\x5D\x08\x8B\xB3\xE4\x01\x00\x00";
+	const uint8_t CBaseClient_SendSignonDataPattern[] = "\x55\x89\xE5\x57\x56\x53\x83\xEC\x68\x8B\x5D\x08\x68\x2A\x2A\x2A\x2A\xE8\x2A\x2A\x2A\x2A\x83\xC4\x10";
 #endif
 	
 	uintptr_t pCreateNetworkStringTables = g_PatternFinderServer.Find<uintptr_t>(CreateNetworkStringTablesPattern, sizeof(CreateNetworkStringTablesPattern) - 1);
@@ -84,7 +84,7 @@ bool LimitExtender::Init(char* error, size_t maxlength)
 	}
 	
 	// Maxentries parameter
-	m_pMaxEntries = reinterpret_cast<uint32_t*>(pCreateNetworkStringTables + WIN_LINUX(0x2F, 0x63));
+	m_pMaxEntries = reinterpret_cast<uint32_t*>(pCreateNetworkStringTables + WIN_LINUX(0x2F, 0x37));
 	
 	// DT_ParticleSystem::m_iEffectIndex::m_nBits
 	ServerClass* pClasses = g_pServerGameDLL->GetAllServerClasses();
@@ -109,13 +109,13 @@ bool LimitExtender::Init(char* error, size_t maxlength)
 	}
 	
 	// g_SendTableCRC
-	m_pSendTableCRC = *reinterpret_cast<uint32_t**>(pSendTable_Init + WIN_LINUX(0xCD, 0x10E));
+	m_pSendTableCRC = *reinterpret_cast<uint32_t**>(pSendTable_Init + WIN_LINUX(0xCD, 0xEC));
 	
 	// Transfer modified table to clients
 	m_pSendTables = g_pCVar->FindVar("sv_sendtables");
 	
 	// sv.m_FullSendTables
-	m_pFullSendTables = *reinterpret_cast<bf_write**>(pCreateBaseline + WIN_LINUX(0xA5, 0x75));
+	m_pFullSendTables = *reinterpret_cast<bf_write**>(pCreateBaseline + WIN_LINUX(0xA5, 0xBC));
 	
 	m_pCHLTVClient_SendSignonData = new subhook::Hook(pCHLTVClient_SendSignonData, reinterpret_cast<void*>(CHLTVClient_SendSignonDataHook));
 	
